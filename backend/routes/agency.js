@@ -18,7 +18,6 @@ module.exports = (db) => {
         }
 
         if (verifyResults.length === 0) {
-          console.error('Şirket bulunamadı. Company ID:', companyId);
           res.status(404).json({ error: "Şirket bulunamadı" });
           return;
         }
@@ -347,7 +346,6 @@ module.exports = (db) => {
         return acc;
       }, {});
       
-      console.log('Getirilen izinler:', permissions); // Debug için
       res.json(permissions);
     });
   });

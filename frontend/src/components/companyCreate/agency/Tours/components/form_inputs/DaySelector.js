@@ -1,13 +1,13 @@
 import React from 'react';
 
 const DAYS = [
-  { id: 'monday', label: 'Pazartesi' },
-  { id: 'tuesday', label: 'Salı' },
-  { id: 'wednesday', label: 'Çarşamba' },
-  { id: 'thursday', label: 'Perşembe' },
-  { id: 'friday', label: 'Cuma' },
-  { id: 'saturday', label: 'Cumartesi' },
-  { id: 'sunday', label: 'Pazar' }
+  { id: 1, label: 'Pazartesi' },
+  { id: 2, label: 'Salı' },
+  { id: 3, label: 'Çarşamba' },
+  { id: 4, label: 'Perşembe' },
+  { id: 5, label: 'Cuma' },
+  { id: 6, label: 'Cumartesi' },
+  { id: 7, label: 'Pazar' }
 ];
 
 const DaySelector = ({ selectedDays, onDaySelect, onSelectAll }) => {

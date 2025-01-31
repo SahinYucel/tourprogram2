@@ -1,18 +1,5 @@
 import React from 'react';
-import { DAYS } from '../../components/form_inputs/DaySelector';
-
-const TIME_PERIODS = [
-  { value: '1', label: '1. PERIYOT' },
-  { value: '2', label: '2. PERIYOT' },
-  { value: '3', label: '3. PERIYOT' },
-  { value: '4', label: '4. PERIYOT' },
-  { value: '5', label: '5. PERIYOT' },
-  { value: '6', label: '6. PERIYOT' },
-  { value: '7', label: '7. PERIYOT' },
-  { value: '8', label: '8. PERIYOT' },
-  { value: '9', label: '9. PERIYOT' },
-  { value: '10', label: '10. PERIYOT' }
-];
+import { DAYS } from '../components/form_inputs/DaySelector';
 
 const TourTableExpandedRow = ({ tour, bolgeler }) => {
   // Prop kontrolü
@@ -29,11 +16,6 @@ const TourTableExpandedRow = ({ tour, bolgeler }) => {
   const getDayLabel = (dayId) => {
     const day = DAYS.find(d => d.id === dayId);
     return day ? day.label : dayId;
-  };
-
-  const getPeriodLabel = (periodValue) => {
-    const period = TIME_PERIODS.find(p => p.value === periodValue);
-    return period ? period.label : periodValue;
   };
 
   return (
@@ -70,7 +52,7 @@ const TourTableExpandedRow = ({ tour, bolgeler }) => {
                         <th>Saat</th>
                         <th>Bölge</th>
                         <th>Alan</th>
-                        <th>Periyot</th>
+                        <th>Periyod</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -80,9 +62,7 @@ const TourTableExpandedRow = ({ tour, bolgeler }) => {
                           <td>{time?.region || '-'}</td>
                           <td>{time?.area || '-'}</td>
                           <td>
-                            <span className={`badge ${time?.isActive !== false ? 'bg-success' : 'bg-secondary'}`}>
-                              {time?.isActive !== false ? getPeriodLabel(time.period) : 'PASIF'}
-                            </span>
+                            {time?.periodActive ? (time?.period || '-') : 'Periyod Yok'}
                           </td>
                         </tr>
                       ))}

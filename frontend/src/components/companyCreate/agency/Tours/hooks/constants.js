@@ -1,17 +1,17 @@
 export const INITIAL_TOUR_STATE = {
   tourName: '',
   operator: '',
-  bolgeId: [],
-  options: [],
+  adultPrice: '',
+  childPrice: '',
+  selectedDays: [],
   pickupTimes: [{
     hour: '',
     minute: '',
     region: '',
-    area: ''
+    area: '',
+    periodActive: false,
+    period: ''
   }],
-  adultPrice: '',
-  childPrice: '',
-  selectedDays: [],
-  editingIndex: null,
+  options: [],
   isActive: true
 }; 
