@@ -3,12 +3,13 @@ import React from 'react';
 const TourTableHeader = () => {
   return (
     <thead>
-      <tr className="border-bottom">
-        <th style={{ width: '40px', backgroundColor: 'transparent' }}></th>
-        <th style={{ backgroundColor: 'transparent' }}>Durum</th>
-        <th style={{ backgroundColor: 'transparent' }}>Tur Adı</th>
-        <th style={{ backgroundColor: 'transparent' }}>Operatör</th>
-        <th style={{ backgroundColor: 'transparent', width: '150px' }}>İşlemler</th>
+      <tr>
+        <th style={{ width: '40px' }}></th>
+        <th style={{ width: '80px' }}>Durum</th>
+        <th>Tur Adı</th>
+        <th>Operatör</th>
+        <th>Bölgeler</th>
+        <th style={{ width: '120px' }}>İşlemler</th>
       </tr>
     </thead>
   );

@@ -39,6 +39,10 @@ const Tours = () => {
     localStorage.setItem('currentTourData', JSON.stringify(tourData));
   }, [tourData]);
 
+  useEffect(() => {
+    console.log('INITIAL_TOUR_STATE:', INITIAL_TOUR_STATE);
+  }, []);
+
   const handleChange = (e) => {
     const { name, value } = e.target;
     setTourData(prev => ({
@@ -101,21 +105,34 @@ const Tours = () => {
       operator: selectedCompany ? selectedCompany.companyName : tourData.operator,
       operatorId: selectedCompany ? selectedCompany.alphanumericId : tourData.operator,
       adultPrice: tourData.adultPrice || 0,
-      childPrice: tourData.childPrice || 0
+      childPrice: tourData.childPrice || 0,
+      isActive: true,
+      bolgeId: tourData.bolgeId || [],
+      bolgeler: tourData.bolgeId ? tourData.bolgeId.map(id => 
+        bolgeler.find(bolge => bolge.id === id)?.name || ''
+      ) : []
     };
 
-    const filteredPickupTimes = tourData.pickupTimes.slice(0, -1);
+    // Boş olmayan pickup zamanlarını filtrele
+    const filteredPickupTimes = tourData.pickupTimes
+      .filter(time => time.hour || time.minute || time.region || time.area)
+      .map(time => ({
+        ...time,
+        hour: time.hour || '00',
+        minute: time.minute || '00',
+        region: time.region || '',
+        area: time.area || '',
+        period: time.period || '1',
+        isActive: time.isActive === undefined ? true : time.isActive
+      }));
 
-    // Gün seçilmemişse [0] gönder
     const days = Array.isArray(tourData.selectedDays) && tourData.selectedDays.length > 0 
       ? tourData.selectedDays 
       : [0];
 
     const relatedData = {
       days,
-      pickupTimes: filteredPickupTimes.filter(time => 
-        time.hour || time.minute || time.region || time.area
-      ),
+      pickupTimes: filteredPickupTimes,
       options: Array.isArray(tourData.options) ? 
         tourData.options.filter(opt => opt.name || opt.price) : []
     };
@@ -151,6 +168,7 @@ const Tours = () => {
         adultPrice: tour.adultPrice || '',
         childPrice: tour.childPrice || '',
         selectedDays: tour.relatedData?.days || [],
+        bolgeId: tour.bolgeId || [],
         pickupTimes: tour.relatedData?.pickupTimes?.map(time => ({
           hour: time.hour || '',
           minute: time.minute || '',
@@ -201,11 +219,19 @@ const Tours = () => {
           period: '1'
         };
       }
+      
+      // Bölge değiştiğinde, o bölgeye ait alanı sıfırla
+      const updates = { [field]: value };
+      if (field === 'region') {
+        updates.area = '';
+        updates.period = '1';
+      }
+      
       newTimes[index] = { 
         ...newTimes[index], 
-        [field]: value,
-        ...(field === 'region' ? { period: newTimes[index].period || '1' } : {})
+        ...updates
       };
+      
       return { ...prev, pickupTimes: newTimes };
     });
   };
@@ -283,9 +309,49 @@ const Tours = () => {
   }, [createdTours, searchQuery, showActive]);
 
   const handleStatusChange = (tourId) => {
-    setCreatedTours(prev => prev.map(tour => 
-      tour === tourId ? { ...tour, isActive: !tour.isActive } : tour
-    ));
+    console.log('Status değişikliği öncesi tour:', tourId);
+    console.log('Status değişikliği öncesi isActive:', tourId.isActive);
+    
+    setCreatedTours(prev => prev.map(tour => {
+      if (tour === tourId) {
+        const updatedTour = { ...tour, isActive: !tour.isActive };
+        console.log('Güncellenmiş tour:', updatedTour);
+        return updatedTour;
+      }
+      return tour;
+    }));
+  };
+
+  const handlePickupTimeStatusChange = (tourIndex, pickupTimeIndex) => {
+    setCreatedTours(prev => {
+      const newTours = [...prev];
+      const tour = { ...newTours[tourIndex] };
+      
+      // Güvenlik kontrolleri ekleyelim
+      if (!tour?.relatedData?.pickupTimes?.[pickupTimeIndex]) {
+        console.error('Pickup time not found:', { tourIndex, pickupTimeIndex });
+        return prev;
+      }
+
+      const pickupTimes = [...tour.relatedData.pickupTimes];
+      const currentTime = pickupTimes[pickupTimeIndex];
+
+      // isActive değerinin varlığını kontrol edelim
+      const newIsActive = currentTime.isActive === undefined ? false : !currentTime.isActive;
+
+      pickupTimes[pickupTimeIndex] = {
+        ...currentTime,
+        isActive: newIsActive
+      };
+      
+      tour.relatedData = {
+        ...tour.relatedData,
+        pickupTimes
+      };
+      
+      newTours[tourIndex] = tour;
+      return newTours;
+    });
   };
 
   const handleSaveToDatabase = async () => {
@@ -297,37 +363,28 @@ const Tours = () => {
       }
 
       const toursToSave = createdTours.map(tour => {
-        const pickupTimes = tour.relatedData.pickupTimes.map(time => ({
-          ...time,
-          period: time.period || '1',
-          hour: time.hour || '00',
-          minute: time.minute || '00',
-          region: time.region || '',
-          area: time.area || ''
-        }));
-
-        // Gün seçilmemişse [0] gönder
-        const days = Array.isArray(tour.relatedData.days) && tour.relatedData.days.length > 0 
-          ? tour.relatedData.days 
-          : [0];
-
-        return {
+        console.log('Tour verisi dönüştürme öncesi:', tour);
+        const tourData = {
           mainTour: {
             company_ref: agencyUser.companyId,
             tour_name: tour.tourName,
             operator: tour.operator,
             operator_id: tour.operatorId,
             adult_price: tour.adultPrice,
-            child_price: tour.childPrice
+            child_price: tour.childPrice,
+            is_active: Boolean(tour.isActive)
           },
-          days,
-          pickupTimes,
+          days: tour.relatedData.days,
+          pickupTimes: tour.relatedData.pickupTimes,
           options: tour.relatedData.options
         };
+        console.log('API\'ye gönderilecek tour verisi:', tourData);
+        return tourData;
       });
 
-      console.log('Gönderilecek veriler:', JSON.stringify(toursToSave, null, 2));
+      console.log('API\'ye gönderilecek tüm veriler:', JSON.stringify(toursToSave, null, 2));
       const response = await saveAllTours(toursToSave);
+      console.log('API yanıtı:', response);
       
       if (response.success) {
         alert('Turlar başarıyla kaydedildi!');
@@ -425,6 +482,7 @@ const Tours = () => {
             bolgeler={bolgeler}
             onCopy={handleCopy}
             onStatusChange={handleStatusChange}
+            onPickupTimeStatusChange={handlePickupTimeStatusChange}
           />
         </div>
       </div>

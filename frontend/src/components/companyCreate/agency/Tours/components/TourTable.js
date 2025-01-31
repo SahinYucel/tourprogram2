@@ -3,7 +3,7 @@ import TourTableHeader from './table/TourTableHeader';
 import TourTableRow from './table/TourTableRow';
 import TourTableExpandedRow from './table/TourTableExpandedRow';
 
-const TourTable = ({ tours, onEdit, onDelete, bolgeler, onCopy, onStatusChange }) => {
+const TourTable = ({ tours, onEdit, onDelete, bolgeler, onCopy, onStatusChange, onPickupTimeStatusChange }) => {
   const [expandedRows, setExpandedRows] = useState({});
 
   const toggleRow = (index) => {
@@ -43,6 +43,8 @@ const TourTable = ({ tours, onEdit, onDelete, bolgeler, onCopy, onStatusChange }
                 <TourTableExpandedRow 
                   tour={tour}
                   bolgeler={bolgeler}
+                  tourIndex={index}
+                  onPickupTimeStatusChange={onPickupTimeStatusChange}
                 />
               )}
             </React.Fragment>

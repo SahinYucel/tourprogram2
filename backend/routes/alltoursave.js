@@ -8,6 +8,8 @@ module.exports = (db) => {
     try {
       await connection.beginTransaction();
 
+      console.log('API\'ye gelen ham veriler:', JSON.stringify(req.body, null, 2));
+
       // Veri kontrolü
       if (!Array.isArray(req.body) || req.body.length === 0) {
         throw new Error('Geçerli tur verisi bulunamadı');
@@ -18,8 +20,6 @@ module.exports = (db) => {
         throw new Error('Company reference is required');
       }
 
-      console.log('Gelen veriler:', JSON.stringify(req.body, null, 2));
-
       // Mevcut turları sil
       await connection.query(
         'DELETE FROM tours WHERE company_ref = ?',
@@ -29,22 +29,44 @@ module.exports = (db) => {
       // Yeni turları ekle
       for (const tourData of req.body) {
         const { mainTour, days, pickupTimes, options } = tourData;
+        
+        console.log('İşlenecek tur verisi:', {
+          mainTour,
+          is_active: mainTour.is_active,
+          is_active_type: typeof mainTour.is_active,
+          is_active_value_to_db: mainTour.is_active === false ? 0 : 1
+        });
 
         // Ana tur kaydı
-        const [tourResult] = await connection.query(
-          `INSERT INTO tours (
-            company_ref, tour_name, operator, operator_id, 
-            adult_price, child_price
-          ) VALUES (?, ?, ?, ?, ?, ?)`,
-          [
-            mainTour.company_ref,
-            mainTour.tour_name,
-            mainTour.operator,
-            mainTour.operator_id,
-            parseFloat(mainTour.adult_price) || 0,
-            parseFloat(mainTour.child_price) || 0
-          ]
+        const insertQuery = `INSERT INTO tours (
+          company_ref, tour_name, operator, operator_id, 
+          adult_price, child_price, is_active
+        ) VALUES (?, ?, ?, ?, ?, ?, ?)`;
+
+        const insertValues = [
+          mainTour.company_ref,
+          mainTour.tour_name,
+          mainTour.operator,
+          mainTour.operator_id,
+          parseFloat(mainTour.adult_price) || 0,
+          parseFloat(mainTour.child_price) || 0,
+          mainTour.is_active === false ? 0 : 1
+        ];
+
+        console.log('SQL Sorgusu:', insertQuery);
+        console.log('SQL Değerleri:', insertValues);
+
+        const [tourResult] = await connection.query(insertQuery, insertValues);
+
+        console.log('Veritabanına eklenen tur sonucu:', tourResult);
+        console.log('Eklenen kayıt is_active değeri:', insertValues[6]);
+
+        // Eklenen kaydı kontrol et
+        const [checkResult] = await connection.query(
+          'SELECT * FROM tours WHERE id = ?',
+          [tourResult.insertId]
         );
+        console.log('Eklenen kayıt kontrolü:', checkResult[0]);
 
         const tourId = tourResult.insertId;
         console.log('Eklenen tur ID:', tourId);
@@ -77,19 +99,33 @@ module.exports = (db) => {
 
         // Kalkış zamanlarını kaydet
         if (Array.isArray(pickupTimes) && pickupTimes.length > 0) {
-          const timeValues = pickupTimes.map(time => [
-            tourId, 
-            time.hour || '00',
-            time.minute || '00',
-            time.region || '',
-            time.area || '',
-            time.period || '1'
-          ]);
+          console.log('Kaydedilecek pickup times:', pickupTimes);
+          
+          const timeValues = pickupTimes.map(time => {
+            // isActive değerini period_active olarak 1/0 şeklinde dönüştür
+            const periodActive = time.isActive === false ? 0 : 1;
+            
+            console.log('Pickup time dönüşümü:', {
+              original: time,
+              periodActive,
+              isActive: time.isActive
+            });
+
+            return [
+              tourId, 
+              time.hour || '00',
+              time.minute || '00',
+              time.region || '',
+              time.area || '',
+              time.period || '1',
+              periodActive  // period_active sütununa 1 veya 0 olarak kaydet
+            ];
+          });
 
           if (timeValues.length > 0) {
             await connection.query(
               `INSERT INTO tour_pickup_times 
-              (tour_id, hour, minute, region, area, period) 
+              (tour_id, hour, minute, region, area, period, period_active) 
               VALUES ?`,
               [timeValues]
             );
@@ -142,9 +178,11 @@ module.exports = (db) => {
 
       // Ana tur bilgilerini al
       const [tours] = await connection.query(
-        'SELECT * FROM tours WHERE company_ref = ?',
+        'SELECT id, company_ref, tour_name, operator, operator_id, adult_price, child_price, is_active FROM tours WHERE company_ref = ?',
         [companyRef]
       );
+
+      console.log('Veritabanından gelen turlar:', tours);
 
       // Her tur için ilişkili verileri al
       const fullTours = await Promise.all(tours.map(async (tour) => {
@@ -156,7 +194,7 @@ module.exports = (db) => {
 
         // Kalkış zamanlarını al
         const [pickupTimes] = await connection.query(
-          'SELECT * FROM tour_pickup_times WHERE tour_id = ?',
+          'SELECT *, period_active FROM tour_pickup_times WHERE tour_id = ?',
           [tour.id]
         );
 
@@ -166,16 +204,30 @@ module.exports = (db) => {
           [tour.id]
         );
 
+        // is_active'i boolean'a çevir
+        const isActive = tour.is_active === 1 || tour.is_active === '1' || tour.is_active === true;
+        console.log('Tur ID:', tour.id, 'DB is_active:', tour.is_active, 'Converted isActive:', isActive);
+
+        // period_active'i isActive olarak boolean'a çevir
+        const formattedPickupTimes = pickupTimes.map(time => ({
+          ...time,
+          isActive: time.period_active === 1,  // 1 ise true, değilse false
+          period_active: undefined  // frontend'e gönderirken period_active'i kaldır
+        }));
+
         return {
           mainTour: {
             ...tour,
-            company_ref: companyRef
+            company_ref: companyRef,
+            is_active: isActive
           },
           days: days.map(d => d.day_number),
-          pickupTimes,
+          pickupTimes: formattedPickupTimes,
           options
         };
       }));
+
+      console.log('Frontend\'e gönderilen turlar:', fullTours);
 
       res.json({
         success: true,

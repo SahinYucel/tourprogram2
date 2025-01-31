@@ -67,6 +67,17 @@ const TourTableRow = ({
           )}
         </div>
       </td>
+      <td onClick={() => onToggle(index)}>
+        <div className="d-flex flex-column">
+          {tour.bolgeler && tour.bolgeler.length > 0 ? (
+            <span className="badge bg-info text-wrap">
+              {tour.bolgeler.join(', ')}
+            </span>
+          ) : (
+            <span className="text-muted">Bölge seçilmemiş</span>
+          )}
+        </div>
+      </td>
       <td>
         <ActionButtons
           onEdit={() => onEdit(tour)}
