@@ -9,40 +9,18 @@ import RegionAreaList from './components/tourList_sub/RegionAreaList';
 const TourAddToList = () => {
   // Tour states
   const [tourName, setTourName] = useState('');
-  const [tours, setTours] = useState(() => {
-    const savedTours = localStorage.getItem('tourList');
-    return savedTours ? JSON.parse(savedTours) : [];
-  });
-  const [counter, setCounter] = useState(() => {
-    const savedCounter = localStorage.getItem('tourCounter');
-    return savedCounter ? parseInt(savedCounter) : 1;
-  });
+  const [tours, setTours] = useState([]);
+  const [counter, setCounter] = useState(1);
 
   // Bolgelendirme states
   const [bolgelendir, setBolgelendir] = useState('');
-  const [bolgeler, setBolgeler] = useState(() => {
-    const savedBolgeler = localStorage.getItem('bolgeList');
-    return savedBolgeler ? JSON.parse(savedBolgeler) : [];
-  });
-  const [bolgeCounter, setBolgeCounter] = useState(() => {
-    const savedCounter = localStorage.getItem('bolgeCounter');
-    return savedCounter ? parseInt(savedCounter) : 1;
-  });
+  const [bolgeler, setBolgeler] = useState([]);
+  const [bolgeCounter, setBolgeCounter] = useState(1);
 
   // Region and Area states
   const [regionName, setRegionName] = useState('');
-  const [regions, setRegions] = useState(() => {
-    const savedRegions = localStorage.getItem('regionList');
-    const parsedRegions = savedRegions ? JSON.parse(savedRegions) : [];
-    return parsedRegions.map(region => ({
-      ...region,
-      areas: region.areas || []
-    }));
-  });
-  const [regionCounter, setRegionCounter] = useState(() => {
-    const savedCounter = localStorage.getItem('regionCounter');
-    return savedCounter ? parseInt(savedCounter) : 1;
-  });
+  const [regions, setRegions] = useState([]);
+  const [regionCounter, setRegionCounter] = useState(1);
 
   // Area states
   const [areaName, setAreaName] = useState('');
@@ -125,15 +103,23 @@ const TourAddToList = () => {
     e.preventDefault();
     if (!bolgelendir.trim()) return;
 
+    // Yeni bölge objesi oluştur
     const newBolge = {
       id: bolgeCounter,
-      name: bolgelendir.trim()
+      name: bolgelendir.trim().toUpperCase()
     };
 
+    // bolgeler state'ini güncelle
     setBolgeler(prev => [...prev, newBolge]);
     setBolgeCounter(prev => prev + 1);
     setBolgelendir('');
-  }, [bolgelendir, bolgeCounter]);
+
+    // LocalStorage'ı güncelle
+    const updatedBolgeler = [...bolgeler, newBolge];
+    localStorage.setItem('bolgeList', JSON.stringify(updatedBolgeler));
+
+    console.log('Güncel bolgeler:', updatedBolgeler); // Debug için
+  }, [bolgelendir, bolgeCounter, bolgeler]);
 
   const handleDelete = useCallback((id, type, regionId) => {
     if (window.confirm(`Bu ${type}yi silmek istediğinizden emin misiniz?`)) {
@@ -165,6 +151,7 @@ const TourAddToList = () => {
       const agencyUser = JSON.parse(localStorage.getItem('agencyUser'));
       
       console.log('Company ID:', agencyUser?.companyId);
+      console.log('Kaydedilecek bolgeler:', bolgeler); // Debug için
       
       if (!agencyUser?.companyId) {
         alert('Şirket bilgisi bulunamadı. Lütfen tekrar giriş yapın.');
@@ -173,7 +160,7 @@ const TourAddToList = () => {
 
       const data = {
         tours,
-        bolgeler,
+        bolgeler, // Bu array backend'e gönderilecek
         regions
       };
 

@@ -7,7 +7,7 @@ module.exports = (db) => {
 
   // Save tour data
   router.post('/save', async (req, res) => {
-    const { companyId, tours, bolgeler, regions } = req.body;
+    const { companyId, tours, bolgeler, regions, bolgeList } = req.body;
 
     if (!companyId) {
       return res.status(400).json({ error: 'Company ID is required' });
@@ -19,28 +19,22 @@ module.exports = (db) => {
       // Delete existing data for the company
       await promiseDb.query('DELETE FROM tourlist WHERE company_id = ?', [companyId]);
       
-      // Önce Bölgelendirme region'ını bul ve sil
+      // Tüm bölgeleri ve alanları sil
       await promiseDb.query(
         'DELETE a FROM areaslist a ' +
         'INNER JOIN regionslist r ON a.region_id = r.id ' +
-        'WHERE a.company_id = ? AND r.name = ?',
-        [companyId, 'Bölgelendirme']
+        'WHERE a.company_id = ?',
+        [companyId]
       );
       await promiseDb.query(
-        'DELETE FROM regionslist WHERE company_id = ? AND name = ?',
-        [companyId, 'Bölgelendirme']
+        'DELETE FROM regionslist WHERE company_id = ?',
+        [companyId]
       );
-
-      // Diğer bölgeleri ve alanları sil
+      
+      // Delete existing create_areaslist data for the company
       await promiseDb.query(
-        'DELETE a FROM areaslist a ' +
-        'INNER JOIN regionslist r ON a.region_id = r.id ' +
-        'WHERE a.company_id = ? AND r.name != ?',
-        [companyId, 'Bölgelendirme']
-      );
-      await promiseDb.query(
-        'DELETE FROM regionslist WHERE company_id = ? AND name != ?',
-        [companyId, 'Bölgelendirme']
+        'DELETE FROM create_areaslist WHERE company_id = ?',
+        [companyId]
       );
 
       // Insert tours
@@ -52,33 +46,33 @@ module.exports = (db) => {
         );
       }
 
-      // Insert bolgeler under Bölgelendirme region
-      if (bolgeler && bolgeler.length > 0) {
-        // Önce Bölgelendirme region'ı oluştur
-        const [regionResult] = await promiseDb.query(
-          'INSERT INTO regionslist (name, company_id) VALUES (?, ?)',
-          ['Bölgelendirme', companyId]
-        );
+      console.log(bolgeList)
 
-        // Bölgeleri bu region altına ekle
-        const bolgeValues = bolgeler.map(bolge => [
-          bolge.name,
-          regionResult.insertId,
-          companyId
-        ]);
-        
-        await promiseDb.query(
-          'INSERT INTO areaslist (name, region_id, company_id) VALUES ?',
-          [bolgeValues]
-        );
+      console.log('Gelen bolgeler:',  );
+      // Insert bolgeler into create_areaslist
+      if (bolgeler && bolgeler.length > 0) {
+        const bolgeValues = bolgeler.map(bolge => [bolge.name, companyId]);
+        console.log('Oluşturulan bolgeValues:', bolgeValues);
+        try {
+          await promiseDb.query(
+            'INSERT INTO create_areaslist (name, company_id) VALUES ?',
+            [bolgeValues]
+          );
+          console.log('Veriler başarıyla kaydedildi');
+        } catch (error) {
+          console.error('SQL Error:', error.message);
+          console.error('SQL Query:', 'INSERT INTO create_areaslist (name, company_id) VALUES ?');
+          console.error('Values:', bolgeValues);
+          throw error;
+        }
       }
+
+      // Insert bolgeler into regionslist
+    
 
       // Insert Bölgeler ve Alanlar
       if (regions && regions.length > 0) {
         for (const region of regions) {
-          // Skip if region name is "Bölgelendirme"
-          if (region.name === 'Bölgelendirme') continue;
-
           // Insert region
           const [regionResult] = await promiseDb.query(
             'INSERT INTO regionslist (name, company_id) VALUES (?, ?)',
@@ -134,12 +128,10 @@ module.exports = (db) => {
         [companyId]
       );
 
-      // Bölgelendirme listesini getir
+      // create_areaslist tablosundan bölgeleri getir
       const [bolgeler] = await promiseDb.query(
-        'SELECT a.* FROM areaslist a ' +
-        'INNER JOIN regionslist r ON a.region_id = r.id ' +
-        'WHERE a.company_id = ? AND r.name = ?',
-        [companyId, 'Bölgelendirme']
+        'SELECT * FROM create_areaslist WHERE company_id = ?',
+        [companyId]
       );
 
       // Bölgeler ve Alanlar listesini getir
@@ -147,8 +139,8 @@ module.exports = (db) => {
         'SELECT r.*, a.id as area_id, a.name as area_name ' +
         'FROM regionslist r ' +
         'LEFT JOIN areaslist a ON r.id = a.region_id ' +
-        'WHERE r.company_id = ? AND r.name != ?',
-        [companyId, 'Bölgelendirme']
+        'WHERE r.company_id = ?',
+        [companyId]
       );
 
       // Bölgeleri ve alanları düzenle
