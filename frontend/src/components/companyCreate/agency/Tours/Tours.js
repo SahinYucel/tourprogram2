@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import 'bootstrap-icons/font/bootstrap-icons.css';
 import TourForm from './components/TourForm';
@@ -10,7 +10,10 @@ import { useTourData } from './hooks/useTourData';
 import { saveAllTours } from '../../../../services/api';
 
 const Tours = () => {
-  const [tourData, setTourData] = useState(INITIAL_TOUR_STATE);
+  const [tourData, setTourData] = useState(() => {
+    const savedData = localStorage.getItem('currentTourData');
+    return savedData ? JSON.parse(savedData) : INITIAL_TOUR_STATE;
+  });
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [createdTours, setCreatedTours] = useState(() => {
     const saved = localStorage.getItem('createdTours');
@@ -27,6 +30,14 @@ const Tours = () => {
     savedCompanies,
     bolgeler
   } = useTourData();
+
+  useEffect(() => {
+    localStorage.setItem('createdTours', JSON.stringify(createdTours));
+  }, [createdTours]);
+
+  useEffect(() => {
+    localStorage.setItem('currentTourData', JSON.stringify(tourData));
+  }, [tourData]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -61,7 +72,17 @@ const Tours = () => {
   };
 
   const resetForm = () => {
-    setTourData(INITIAL_TOUR_STATE);
+    setTourData({
+      ...INITIAL_TOUR_STATE,
+      pickupTimes: [{  // Yeni form için boş bir kayıt
+        hour: '',
+        minute: '',
+        region: '',
+        area: '',
+        period: '1',
+        isActive: true
+      }]
+    });
     setEditingIndex(null);
     setIsCollapsed(true);
   };
@@ -73,24 +94,46 @@ const Tours = () => {
       return;
     }
 
-    // Operatör adını bul
     const selectedCompany = savedCompanies.find(c => c.alphanumericId === tourData.operator);
-    const tourWithOperatorInfo = {
-      ...tourData,
+    
+    const mainTourData = {
+      tourName: tourData.tourName,
       operator: selectedCompany ? selectedCompany.companyName : tourData.operator,
-      operatorId: selectedCompany ? selectedCompany.alphanumericId : tourData.operator
+      operatorId: selectedCompany ? selectedCompany.alphanumericId : tourData.operator,
+      adultPrice: tourData.adultPrice || 0,
+      childPrice: tourData.childPrice || 0
+    };
+
+    const filteredPickupTimes = tourData.pickupTimes.slice(0, -1);
+
+    // Gün seçilmemişse [0] gönder
+    const days = Array.isArray(tourData.selectedDays) && tourData.selectedDays.length > 0 
+      ? tourData.selectedDays 
+      : [0];
+
+    const relatedData = {
+      days,
+      pickupTimes: filteredPickupTimes.filter(time => 
+        time.hour || time.minute || time.region || time.area
+      ),
+      options: Array.isArray(tourData.options) ? 
+        tourData.options.filter(opt => opt.name || opt.price) : []
     };
 
     if (editingIndex !== null) {
-      // Düzenleme modu
       setCreatedTours(prev => {
         const newTours = [...prev];
-        newTours[editingIndex] = tourWithOperatorInfo;
+        newTours[editingIndex] = {
+          ...mainTourData,
+          relatedData
+        };
         return newTours;
       });
     } else {
-      // Yeni tur ekleme
-      setCreatedTours(prev => [...prev, tourWithOperatorInfo]);
+      setCreatedTours(prev => [...prev, {
+        ...mainTourData,
+        relatedData
+      }]);
     }
 
     resetForm();
@@ -99,16 +142,38 @@ const Tours = () => {
   const handleEdit = (tour) => {
     const index = createdTours.findIndex(t => t === tour);
     if (index !== -1) {
-      // Use operatorId if available, otherwise try to find it from the company name
       const operatorId = tour.operatorId || 
         (savedCompanies.find(c => c.companyName === tour.operator)?.alphanumericId || tour.operator);
       
-      const tourWithOperatorId = {
-        ...tour,
-        operator: operatorId
+      const editableTourData = {
+        tourName: tour.tourName,
+        operator: operatorId,
+        adultPrice: tour.adultPrice || '',
+        childPrice: tour.childPrice || '',
+        selectedDays: tour.relatedData?.days || [],
+        pickupTimes: tour.relatedData?.pickupTimes?.map(time => ({
+          hour: time.hour || '',
+          minute: time.minute || '',
+          region: time.region || '',
+          area: time.area || '',
+          isActive: time.isActive !== false,
+          period: time.period || '1'
+        })) || [{ 
+          hour: '', 
+          minute: '', 
+          region: '', 
+          area: '',
+          isActive: true,
+          period: '1'
+        }],
+        options: tour.relatedData?.options?.map(opt => ({
+          name: opt.option_name || opt.name || '',
+          price: opt.price || ''
+        })) || [],
+        isActive: tour.isActive
       };
       
-      setTourData(tourWithOperatorId);
+      setTourData(editableTourData);
       setEditingIndex(index);
       setIsCollapsed(false);
     }
@@ -125,8 +190,22 @@ const Tours = () => {
 
   const handleTimeChange = (index, field, value) => {
     setTourData(prev => {
-      const newTimes = [...prev.pickupTimes];
-      newTimes[index] = { ...newTimes[index], [field]: value };
+      const newTimes = [...(prev.pickupTimes || [])];
+      if (!newTimes[index]) {
+        newTimes[index] = {
+          hour: '',
+          minute: '',
+          region: '',
+          area: '',
+          isActive: true,
+          period: '1'
+        };
+      }
+      newTimes[index] = { 
+        ...newTimes[index], 
+        [field]: value,
+        ...(field === 'region' ? { period: newTimes[index].period || '1' } : {})
+      };
       return { ...prev, pickupTimes: newTimes };
     });
   };
@@ -134,12 +213,17 @@ const Tours = () => {
   const addPickupTime = () => {
     setTourData(prev => ({
       ...prev,
-      pickupTimes: [...prev.pickupTimes, { 
-        hour: '', 
-        minute: '', 
-        region: '', 
-        area: '' 
-      }]
+      pickupTimes: [
+        ...prev.pickupTimes,
+        {
+          hour: '',
+          minute: '',
+          region: '',
+          area: '',
+          period: '1',
+          isActive: true
+        }
+      ]
     }));
   };
 
@@ -179,7 +263,6 @@ const Tours = () => {
 
   const filteredAndSortedTours = useMemo(() => {
     return [...createdTours]
-      // Önce arama filtresini uygula
       .filter(tour => {
         const searchLower = searchQuery.toLowerCase();
         return (
@@ -188,12 +271,10 @@ const Tours = () => {
           tour.operator.toLowerCase().includes(searchLower)
         );
       })
-      // Sonra aktif/pasif filtresini uygula
       .filter(tour => {
         if (showActive === 'all') return true;
         return showActive === 'active' ? tour.isActive : !tour.isActive;
       })
-      // En son sırala
       .sort((a, b) => {
         const nameA = a.tourName.toLowerCase();
         const nameB = b.tourName.toLowerCase();
@@ -215,14 +296,41 @@ const Tours = () => {
         return;
       }
 
-      // Aktif ve pasif tüm turları gönder
-      const response = await saveAllTours(agencyUser.companyId, createdTours);
+      const toursToSave = createdTours.map(tour => {
+        const pickupTimes = tour.relatedData.pickupTimes.map(time => ({
+          ...time,
+          period: time.period || '1',
+          hour: time.hour || '00',
+          minute: time.minute || '00',
+          region: time.region || '',
+          area: time.area || ''
+        }));
+
+        // Gün seçilmemişse [0] gönder
+        const days = Array.isArray(tour.relatedData.days) && tour.relatedData.days.length > 0 
+          ? tour.relatedData.days 
+          : [0];
+
+        return {
+          mainTour: {
+            company_ref: agencyUser.companyId,
+            tour_name: tour.tourName,
+            operator: tour.operator,
+            operator_id: tour.operatorId,
+            adult_price: tour.adultPrice,
+            child_price: tour.childPrice
+          },
+          days,
+          pickupTimes,
+          options: tour.relatedData.options
+        };
+      });
+
+      console.log('Gönderilecek veriler:', JSON.stringify(toursToSave, null, 2));
+      const response = await saveAllTours(toursToSave);
       
       if (response.success) {
         alert('Turlar başarıyla kaydedildi!');
-        // Opsiyonel: Başarılı kayıttan sonra localStorage'ı temizle
-        // localStorage.removeItem('createdTours');
-        // setCreatedTours([]);
       } else {
         alert('Kayıt sırasında bir hata oluştu: ' + response.message);
       }
@@ -243,7 +351,7 @@ const Tours = () => {
         />
         <div className={`card-body ${isCollapsed ? 'd-none' : ''}`}>
           <TourForm
-            tourData={{ ...tourData, editingIndex }}
+            tourData={tourData}
             formInputs={formInputs}
             savedRegions={savedRegions} 
             savedAreas={savedAreas}
@@ -318,7 +426,6 @@ const Tours = () => {
             onCopy={handleCopy}
             onStatusChange={handleStatusChange}
           />
-
         </div>
       </div>
     </div>
