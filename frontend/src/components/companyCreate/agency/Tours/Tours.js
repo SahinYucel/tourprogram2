@@ -1,38 +1,16 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import 'bootstrap-icons/font/bootstrap-icons.css';
 import TourForm from './components/TourForm';
 import TourHeader from './components/TourHeader';
 import TourTable from './components/TourTable';
 import { DAYS } from './components/form_inputs/DaySelector';
-import { getTourData, getProviders } from '../../../../services/api';
-
-const INITIAL_TOUR_STATE = {
-  tourName: '',
-  operator: '',
-  bolgeId: [],
-  options: [],
-  pickupTimes: [{
-    hour: '',
-    minute: '',
-    region: '',
-    area: ''
-  }],
-  adultPrice: '',
-  childPrice: '',
-  selectedDays: [],
-  editingIndex: null,
-  isActive: true
-};
+import { INITIAL_TOUR_STATE } from './hooks/constants';
+import { useTourData } from './hooks/useTourData';
+import { saveAllTours } from '../../../../services/api';
 
 const Tours = () => {
   const [tourData, setTourData] = useState(INITIAL_TOUR_STATE);
-  const [savedTours, setSavedTours] = useState([]);
-  const [savedRegions, setSavedRegions] = useState([]);
-  const [savedAreas, setSavedAreas] = useState([]);
-  const [savedCompanies, setSavedCompanies] = useState([]);
-  const [bolgeler, setBolgeler] = useState([]);
-  const [regions, setRegions] = useState([]);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [createdTours, setCreatedTours] = useState(() => {
     const saved = localStorage.getItem('createdTours');
@@ -41,84 +19,14 @@ const Tours = () => {
   const [editingIndex, setEditingIndex] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [showActive, setShowActive] = useState('all');
-  const [counter, setCounter] = useState(0);
-  const [bolgeCounter, setBolgeCounter] = useState(0);
-  const [regionCounter, setRegionCounter] = useState(0);
 
-  useEffect(() => {
-    const fetchAllData = async () => {
-      try {
-        const agencyUser = JSON.parse(localStorage.getItem('agencyUser'));
-        if (!agencyUser?.companyId) {
-          console.warn('Şirket ID bulunamadı');
-          return;
-        }
-
-        // API'den tur verilerini çek
-        const data = await getTourData(agencyUser.companyId);
-        
-        // API'den operatörleri (şirketleri) çek
-        const providersResponse = await getProviders(agencyUser.companyId);
-        if (providersResponse.data && Array.isArray(providersResponse.data)) {
-          const formattedProviders = providersResponse.data.map(provider => ({
-            id: Date.now() + Math.random(),
-            alphanumericId: provider.companyRef,
-            companyName: provider.company_name,
-            phoneNumber: provider.phone_number,
-            status: provider.status === 1
-          }));
-          setSavedCompanies(formattedProviders);
-          localStorage.setItem('companies', JSON.stringify(formattedProviders));
-        }
-
-        // Bölge ve alan verilerini getTourData'dan al
-        if (data) {
-          if (data.tours) {
-            setSavedTours(data.tours);
-            const maxTourId = Math.max(...data.tours.map(t => t.id), 0);
-            setCounter(maxTourId + 1);
-          }
-          
-          if (data.regions) {
-            setSavedRegions(data.regions);
-            setRegions(data.regions);
-            const maxRegionId = Math.max(...data.regions.map(r => r.id), 0);
-            setRegionCounter(maxRegionId + 1);
-          }
-
-          if (data.areas) {
-            setSavedAreas(data.areas);
-          }
-          
-          if (data.bolgeler) {
-            setBolgeler(data.bolgeler);
-            const maxBolgeId = Math.max(...data.bolgeler.map(b => b.id), 0);
-            setBolgeCounter(maxBolgeId + 1);
-          }
-          
-          // LocalStorage'a kaydet
-          localStorage.setItem('tourList', JSON.stringify(data.tours || []));
-          localStorage.setItem('bolgeList', JSON.stringify(data.bolgeler || []));
-          localStorage.setItem('regionList', JSON.stringify(data.regions || []));
-          localStorage.setItem('areaList', JSON.stringify(data.areas || []));
-        }
-
-        console.log('Tüm veriler yüklendi:', { 
-          data, 
-          providers: providersResponse.data
-        });
-
-      } catch (error) {
-        console.error('Veri yükleme hatası:', error);
-      }
-    };
-
-    fetchAllData();
-  }, []); // Sadece component mount olduğunda çalışsın
-
-  useEffect(() => {
-    localStorage.setItem('createdTours', JSON.stringify(createdTours));
-  }, [createdTours]);
+  const {
+    savedTours,
+    savedRegions,
+    savedAreas,
+    savedCompanies,
+    bolgeler
+  } = useTourData();
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -299,6 +207,31 @@ const Tours = () => {
     ));
   };
 
+  const handleSaveToDatabase = async () => {
+    try {
+      const agencyUser = JSON.parse(localStorage.getItem('agencyUser'));
+      if (!agencyUser?.companyId) {
+        alert('Şirket ID bulunamadı. Lütfen tekrar giriş yapın.');
+        return;
+      }
+
+      // Aktif ve pasif tüm turları gönder
+      const response = await saveAllTours(agencyUser.companyId, createdTours);
+      
+      if (response.success) {
+        alert('Turlar başarıyla kaydedildi!');
+        // Opsiyonel: Başarılı kayıttan sonra localStorage'ı temizle
+        // localStorage.removeItem('createdTours');
+        // setCreatedTours([]);
+      } else {
+        alert('Kayıt sırasında bir hata oluştu: ' + response.message);
+      }
+    } catch (error) {
+      console.error('Kayıt hatası:', error);
+      alert('Turlar kaydedilirken bir hata oluştu. Lütfen tekrar deneyin.');
+    }
+  };
+
   return (
     <div className="container mt-4">
       <div className="card mb-4">
@@ -343,6 +276,14 @@ const Tours = () => {
               Oluşturulan Turlar
             </h4>
             <div className="d-flex gap-3 align-items-center">
+              <button 
+                className="btn btn-primary"
+                onClick={handleSaveToDatabase}
+                disabled={createdTours.length === 0}
+              >
+                <i className="bi bi-save me-2"></i>
+                Veritabanına Kaydet
+              </button>
               <div className="input-group" style={{ width: '300px' }}>
                 <span className="input-group-text">
                   <i className="bi bi-search"></i>
@@ -377,6 +318,7 @@ const Tours = () => {
             onCopy={handleCopy}
             onStatusChange={handleStatusChange}
           />
+
         </div>
       </div>
     </div>

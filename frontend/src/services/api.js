@@ -89,4 +89,16 @@ export const toggleAutoBackup = (companyId, enabled) => api.post(`/backup/auto-b
   }
 });
 
+export const saveAllTours = async (companyId, tours) => {
+  try {
+    const response = await api.post('/alltoursave', {
+      companyId,
+      tours
+    });
+    return response.data;
+  } catch (error) {
+    throw error;
+  }
+};
+
 export default api;

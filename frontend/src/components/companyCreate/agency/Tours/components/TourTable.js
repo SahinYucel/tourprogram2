@@ -49,6 +49,10 @@ const TourTable = ({ tours, onEdit, onDelete, bolgeler, onCopy, onStatusChange }
           ))}
         </tbody>
       </table>
+      <button className='btn btn-success btn-block w-100'>
+        <i className='bi bi-cloud-upload me-2'></i>
+        Veri Tabanına Kaydet
+      </button>
     </div>
   );
 };

@@ -80,6 +80,7 @@ const agencyRoutes = require('./routes/agency')(db);
 const agencyAddCompanies = require('./routes/agencyAddCompanies')(db);
 const backupRoutes = require('./routes/backup')(db);
 const tourlist = require('./routes/tourlist')(db);
+const alltoursave = require('./routes/alltoursave')(db);
 
 // Route middlewares
 app.use('/auth', authRoutes);
@@ -88,6 +89,7 @@ app.use('/agency', agencyRoutes);
 app.use('/agencyAddCompanies', agencyAddCompanies);
 app.use('/tourlist', tourlist);
 app.use('/backup', backupRoutes);
+app.use('/alltoursave', alltoursave);
 
 const PORT = 5000; 
 app.listen(PORT, () => {
